@@ -1,55 +1,43 @@
     private static ExpressionStarter<T> GenerateDynamicConditionForFindingRangeOfIds<T>(IEnumerable<DataBaseTransfer> databaseTransfer,
                                                                                         ExpressionStarter<T> predicate,
-                                                                                        DynamicConditionInputDto? dynamicConditionInputDto = null
+                                                                                        DynamicConditionInputDto dynamicConditionInputDto
                                                                                         ) where T : class
     {
         var parameter = Expression.Parameter(typeof(T), ParameterName);
 
         foreach (var item in databaseTransfer)
         {
-            if (dynamicConditionInputDto!.DataType == DataType.Numeber)
+            if (dynamicConditionInputDto.DataType == DataType.Numeber)
             {
-                var predicate1 = Expression.Lambda<Func<T, bool>>(Expression.GreaterThanOrEqual(Expression.PropertyOrField(parameter, dynamicConditionInputDto.PropertyName), Expression.Constant(Convert.ToInt32(item.FirstRecord))), parameter);
-                var predicate2 = Expression.Lambda<Func<T, bool>>(Expression.LessThanOrEqual(Expression.PropertyOrField(parameter, dynamicConditionInputDto.PropertyName), Expression.Constant(Convert.ToInt32(item.LastRecord))), parameter);
+                var comparisonWithFirstRecord = Expression.Lambda<Func<T, bool>>(Expression.GreaterThanOrEqual(Expression.PropertyOrField(parameter, dynamicConditionInputDto.PropertyName),
+                                                                                                               Expression.Constant(Convert.ToInt32(item.FirstRecord))),
+                                                                                                               parameter);
 
-                predicate = predicate.Or(predicate1.And(predicate2));
+                var comparisonWithLastRecord = Expression.Lambda<Func<T, bool>>(Expression.LessThanOrEqual(Expression.PropertyOrField(parameter, dynamicConditionInputDto.PropertyName),
+                                                                                                           Expression.Constant(Convert.ToInt32(item.LastRecord))),
+                                                                                                           parameter);
+
+                predicate = predicate.Or(comparisonWithFirstRecord.And(comparisonWithLastRecord));
                 continue;
             }
 
-            if (predicate is ExpressionStarter<GetCustomerDto> customer)
+            if (dynamicConditionInputDto.DataType == DataType.Text)
             {
-                customer = customer.Or(c => string.Compare(c.C_Code, item.FirstRecord) >= 0 &&
-                                            string.Compare(c.C_Code, item.LastRecord) <= 0);
-                continue;
-            }
+                var comparisonWithFirstRecord = Expression.Lambda<Func<T, bool>>(Expression.GreaterThanOrEqual(CallCompareMethod(parameter, item.FirstRecord, dynamicConditionInputDto.PropertyName),
+                                                                                 Expression.Constant(0)),
+                                                                                 parameter);
 
-            if (predicate is ExpressionStarter<GetCusTellDto> getCusTellDto)
-            {
-                getCusTellDto = getCusTellDto.Or(c => string.Compare(c.CCode, item.FirstRecord) >= 0 &&
-                                            string.Compare(c.CCode, item.LastRecord) <= 0);
+                var comparisonWithLastRecord = Expression.Lambda<Func<T, bool>>(Expression.LessThanOrEqual(CallCompareMethod(parameter, item.LastRecord, dynamicConditionInputDto.PropertyName),
+                                                                                Expression.Constant(0)),
+                                                                                parameter);
 
-                continue;
-            }
-
-            if (predicate is ExpressionStarter<GetInvoiceDetailDto> invoiceDetail)
-            {
-                invoiceDetail = invoiceDetail.Or(c => string.Compare(c.Id, item.FirstRecord) >= 0 &&
-                                                      string.Compare(c.Id, item.LastRecord) <= 0);
-                continue;
-            }
-
-            if (predicate is ExpressionStarter<GetInvoiceHeaderDto> invoiceHeader)
-            {
-                invoiceHeader = invoiceHeader.Or(c => string.Compare(c.Fac_Code, item.FirstRecord) >= 0 &&
-                                                      string.Compare(c.Fac_Code, item.LastRecord) <= 0);
+                predicate = predicate.Or(comparisonWithFirstRecord.And(comparisonWithLastRecord));
                 continue;
             }
         }
 
         return predicate;
     }
-
-
 
     private static void RemoveIsThirdPartyFromData<T>(ExclusionThirdPartyDataInDatabaseTransferDto databaseTransferAndExcludingThirdPartyIds,
                                                       List<T> data,
